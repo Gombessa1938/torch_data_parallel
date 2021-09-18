@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-
+# note passing model between two gpu during training, one is always idle. use model_parallel when data is too big to fit on single gpu
 class ToyModel(nn.Module):
     def __init__(self):
         super(ToyModel, self).__init__()
