@@ -8,6 +8,9 @@ import torch.optim as optim
 import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+
+#https://pytorch.org/tutorials/intermediate/ddp_tutorial.html
+
 def setup(rank, world_size):
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '12345'
@@ -29,6 +32,8 @@ class ToyModel(nn.Module):
 
     def forward(self, x):
         return self.net2(self.relu(self.net1(x)))
+
+
 
 class ToyMpModel(nn.Module):
     def __init__(self, dev0, dev1):
@@ -71,9 +76,6 @@ def run_demo(demo_fn, world_size):
              args=(world_size,),
              nprocs=world_size,
              join=True)
-
-
-
 
 
 
