@@ -5,9 +5,32 @@ import torch
 import torch.distributed as dist
 import torch.nn as nn
 import torch.optim as optim
+import torchvision
+import torchvision.transforms as transforms
 import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
 from tqdm import tqdm
+
+
+def setup(rank, world_size):
+    os.environ['MASTER_ADDR'] = 'localhost'
+    os.environ['MASTER_PORT'] = '12345'
+
+    # initialize the process group
+    dist.init_process_group("gloo", rank=rank, world_size=world_size)  #gloo for windoes, NCCL for linux, single node multi GPU best performance is NCCL 
+
+def cleanup():
+    dist.destroy_process_group()
+
+def run_demo(demo_fn, world_size):
+    
+    mp.spawn(demo_fn,
+             args=(world_size,),
+             nprocs=world_size,
+             join=True)
+
+
+
 
 
 class ConvNet(nn.Module):
@@ -33,18 +56,21 @@ class ConvNet(nn.Module):
         return out
 
 
-def train(gpu, args):
+def train(rank, world_size):
 
-    model = ConvNet()
-    model = nn.DataParallel(model)
-    torch.cuda.set_device(gpu)
-    model.cuda(gpu)
-    batch_size = 100
+
+    setup(rank, world_size)
+
+
+    model = ConvNet().to(rank)
+    ddp_model = DDP(model,device_ids= [rank])
     
-    # define loss function (criterion) and optimizer
-    criterion = nn.CrossEntropyLoss().cuda(gpu)
+    loss_fn = nn.NLLLoss(reduction='none')
     optimizer = torch.optim.SGD(model.parameters(), 1e-4)
-    # Data loading code
+    batch_size = 512
+
+
+    
     train_dataset = torchvision.datasets.MNIST(root='./data',
                                                train=True,
                                                transform=transforms.ToTensor(),
@@ -54,51 +80,31 @@ def train(gpu, args):
                                                shuffle=True,
                                                num_workers=0,
                                                pin_memory=True)
-
-    start = datetime.now()
-    total_step = len(train_loader)
-    for epoch in range(args.epochs):
+    
+    
+    
+    for epoch in tqdm(range(100)):
         for i, (images, labels) in enumerate(train_loader):
-            images = images.cuda(non_blocking=True)
-            labels = labels.cuda(non_blocking=True)
-            # Forward pass
-            outputs = model(images)
-            loss = criterion(outputs, labels)
+            images = images.to(rank)
+            labels = labels.to(rank)
+        
 
-            # Backward and optimize
             optimizer.zero_grad()
-            loss.backward()
+            outputs = model(images)
+            loss = loss_fn(outputs, labels)
+            loss.mean().backward() # multi gpu has multiple loss tensor, we want to use mean() to average them
             optimizer.step()
-            if (i + 1) % 100 == 0 and gpu == 0:
-                print('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(
-                    epoch + 1, 
-                    args.epochs, 
-                    i + 1, 
-                    total_step,
-                    loss.item())
-                   )
-    if gpu == 0:
-        print("Training complete in: " + str(datetime.now() - start))
+   
+    cleanup()
 
+if __name__ == "__main__":
+    
+    n_gpus = torch.cuda.device_count()
+    
+    print('device count:',n_gpus)
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-n', '--nodes', default=1,
-                        type=int, metavar='N')
-    parser.add_argument('-g', '--gpus', default=1, type=int,
-                        help='number of gpus per node')
-    parser.add_argument('-nr', '--nr', default=0, type=int,
-                        help='ranking within the nodes')
-    parser.add_argument('--epochs', default=2, type=int, 
-                        metavar='N',
-                        help='number of total epochs to run')
-    args = parser.parse_args()
+    assert n_gpus >= 2, f"Requires at least 2 GPUs to run, but got {n_gpus}"
 
-
-
-    #########################################################
-    args.world_size = args.gpus * args.nodes                
-    os.environ['MASTER_ADDR'] = 'localhost'              
-    os.environ['MASTER_PORT'] = '111111'                      
-    mp.spawn(train, nprocs=args.gpus, args=(args,))         
-    #########################################################
+    world_size = n_gpus
+    
+    run_demo(train, world_size)
