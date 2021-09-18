@@ -13,7 +13,7 @@ def setup(rank, world_size):
     os.environ['MASTER_PORT'] = '12345'
 
     # initialize the process group
-    dist.init_process_group("gloo", rank=rank, world_size=world_size)  #gloo for windoes, NCCL for linux only, single node multi GPU best performance is NCCL 
+    dist.init_process_group("gloo", rank=rank, world_size=world_size)  #gloo for windoes, NCCL for linux, single node multi GPU best performance is NCCL 
 
 def cleanup():
     dist.destroy_process_group()
