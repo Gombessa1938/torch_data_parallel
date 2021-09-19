@@ -34,7 +34,6 @@ class ToyModel(nn.Module):
         return self.net2(self.relu(self.net1(x)))
 
 
-'''
 class ToyMpModel(nn.Module):
     def __init__(self, dev0, dev1):
         super(ToyMpModel, self).__init__()
@@ -49,7 +48,7 @@ class ToyMpModel(nn.Module):
         x = self.relu(self.net1(x))
         x = x.to(self.dev1)
         return self.net2(x)
-'''
+
 
 def demo_basic(rank, world_size):
     

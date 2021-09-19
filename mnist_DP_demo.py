@@ -10,8 +10,7 @@ import torchvision.transforms as transforms
 import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
 from tqdm import tqdm
-
-
+import numpy as np 
 
 
 
@@ -19,16 +18,15 @@ class ConvNet(nn.Module):
     def __init__(self, num_classes=10):
         super(ConvNet, self).__init__()
         self.layer1 = nn.Sequential(
-            nn.Conv2d(1, 16, kernel_size=5, stride=1, padding=2),
+            nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=0),
             nn.BatchNorm2d(16),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2))
+            nn.ReLU(),)
+            
         self.layer2 = nn.Sequential(
-            nn.Conv2d(16, 32, kernel_size=5, stride=1, padding=2),
+            nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=0),
             nn.BatchNorm2d(32),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2))
-        self.fc = nn.Linear(7*7*32, num_classes)
+            nn.ReLU())
+        self.fc = nn.Linear(24*24*32, num_classes)
 
     def forward(self, x):
         out = self.layer1(x)
@@ -59,7 +57,7 @@ def train():
     
     
     
-	for epoch in tqdm(range(100)):
+	for epoch in tqdm(range(10)):
 		for i, (images, labels) in enumerate(train_loader):
 			images = images.to('cuda')
 			labels = labels.to('cuda')
@@ -77,5 +75,4 @@ if __name__ == "__main__":
     
     print('device count:',n_gpus)
 
-    #assert n_gpus >= 2, f"Requires at least 2 GPUs to run, but got {n_gpus}"
     train()
