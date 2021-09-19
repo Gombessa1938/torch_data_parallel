@@ -77,5 +77,5 @@ if __name__ == "__main__":
     
     print('device count:',n_gpus)
 
-    assert n_gpus >= 2, f"Requires at least 2 GPUs to run, but got {n_gpus}"
+    #assert n_gpus >= 2, f"Requires at least 2 GPUs to run, but got {n_gpus}"
     train()
