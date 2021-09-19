@@ -12,24 +12,6 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from tqdm import tqdm
 
 
-def setup(rank, world_size):
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12345'
-
-    # initialize the process group
-    dist.init_process_group("gloo", rank=rank, world_size=world_size)  #gloo for windoes, NCCL for linux, single node multi GPU best performance is NCCL 
-
-def cleanup():
-    dist.destroy_process_group()
-
-def run_demo(demo_fn, world_size):
-    
-    mp.spawn(demo_fn,
-             args=(world_size,),
-             nprocs=world_size,
-             join=True)
-
-
 
 
 
@@ -55,27 +37,21 @@ class ConvNet(nn.Module):
         out = self.fc(out)
         return out
 
+def train():
+	model = ConvNet().to('cuda')
 
-def train(rank, world_size):
-
-
-    setup(rank, world_size)
-
-
-    model = ConvNet().to(rank)
-    ddp_model = DDP(model,device_ids= [rank])
-    
-    loss_fn = nn.NLLLoss(reduction='none')
-    optimizer = torch.optim.SGD(model.parameters(), 1e-4)
-    batch_size = 512
+	model = nn.DataParallel(model,device_ids=[0,1,2])
+	loss_fn = nn.NLLLoss(reduction='none')
 
 
-    
-    train_dataset = torchvision.datasets.MNIST(root='./data',
+	optimizer = torch.optim.SGD(model.parameters(), 1e-4)
+	batch_size = 512
+
+	train_dataset = torchvision.datasets.MNIST(root='./data',
                                                train=True,
                                                transform=transforms.ToTensor(),
                                                download=True)
-    train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
+	train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                                batch_size=batch_size,
                                                shuffle=True,
                                                num_workers=0,
@@ -83,19 +59,17 @@ def train(rank, world_size):
     
     
     
-    for epoch in tqdm(range(100)):
-        for i, (images, labels) in enumerate(train_loader):
-            images = images.to(rank)
-            labels = labels.to(rank)
-        
-
-            optimizer.zero_grad()
-            outputs = model(images)
-            loss = loss_fn(outputs, labels)
-            loss.mean().backward() # multi gpu has multiple loss tensor, we want to use mean() to average them
-            optimizer.step()
+	for epoch in tqdm(range(100)):
+		for i, (images, labels) in enumerate(train_loader):
+			images = images.to('cuda')
+			labels = labels.to('cuda')
+			optimizer.zero_grad()
+			outputs = model(images)
+			loss = loss_fn(outputs, labels)
+			loss.mean().backward() 
+			optimizer.step()
    
-    cleanup()
+    
 
 if __name__ == "__main__":
     
@@ -104,7 +78,4 @@ if __name__ == "__main__":
     print('device count:',n_gpus)
 
     assert n_gpus >= 2, f"Requires at least 2 GPUs to run, but got {n_gpus}"
-
-    world_size = n_gpus
-    
-    run_demo(train, world_size)
+    train()

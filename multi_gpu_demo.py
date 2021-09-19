@@ -71,7 +71,8 @@ def demo_basic(rank, world_size):
         optimizer.zero_grad()
         outputs = ddp_model(torch.randn(2000, 1000))
         labels = torch.randn(2000, 500).to(rank)
-        loss_fn(outputs, labels).backward()
+        loss = loss_fn(outputs, labels)
+        loss.backward()
         optimizer.step()
 
     cleanup()
